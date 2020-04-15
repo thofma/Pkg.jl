@@ -5,6 +5,7 @@
 module PlatformEngines
 using SHA, Logging, UUIDs, Random
 import ...Pkg: Pkg, TOML, pkg_server, depots1
+using p7zip_jll
 
 export probe_platform_engines!, parse_7z_list, parse_tar_list, verify,
        download_verify, unpack, package, download_verify_unpack,
@@ -402,13 +403,7 @@ function probe_platform_engines!(;verbose::Bool = false)
         # We greatly prefer `7z` as a compression engine on Windows
         prepend!(compression_engines, [(`7z --help`, gen_7z("7z")...)])
 
-        # For purposes of in-buildtree execution, we look in `bin`
-        exe7z = joinpath(Sys.BINDIR, "7z.exe")
-        prepend!(compression_engines, [(`$exe7z --help`, gen_7z(exe7z)...)])
-
-        # But most commonly, we'll find `7z` sitting in `libexec`, bundled with Julia
-        exe7z = joinpath(Sys.BINDIR, "..", "libexec", "7z.exe")
-        prepend!(compression_engines, [(`$exe7z --help`, gen_7z(exe7z)...)])
+        prepend!(compression_engines, [(`$(p7zip_jll.p7zip_path) --help`, gen_7z(p7zip_jll.p7zip_path)...)])
     end
 
     # Allow environment override
