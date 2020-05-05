@@ -178,6 +178,19 @@ pkg> develop --local Example
 Free a pinned package `pkg`, which allows it to be upgraded or downgraded again. If the package is checked out (see `help develop`) then this command
 makes the package no longer being checked out.
 """,
+],[ :name => "why",
+    :api => API.why,
+    :should_splat => false,
+    :arg_count => 1 => Inf,
+    :arg_parser => parse_package,
+    :completions => complete_installed_packages,
+    :description => "shows why a package is in the manifest",
+    :help => md"""
+    why pkg[=uuid] ...
+
+Show the reason why packages are in the manifest, printed as a path through the
+dependency graph starting at the direct dependencies.
+""",
 ],[ :name => "pin",
     :api => API.pin,
     :should_splat => false,
