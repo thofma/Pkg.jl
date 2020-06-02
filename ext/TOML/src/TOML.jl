@@ -1,52 +1,93 @@
-# This file is a part of Julia. License is MIT: https://julialang.org/license
-
-# TODO
-#   add overall how-to docstring
-#   create test cases of malformed TOML to see if caught and errors reported correctly
-
 module TOML
-    using Dates
 
-    include("parser.jl")
+using Dates
+
+module Internals
+    const HAVE_DATES = true
+    include(Base.find_source_file("toml_parser.jl"))
     include("print.jl")
+end # module
 
-    "Convert `TOML.Table` to `Dict{String,Any}`"
-    function table2dict(tbl::Union{Nothing,Table})
-        tbl === nothing && return Dict{String,Any}()
-        return table2dict(get(tbl))
-    end
+"""
+    Parser()
 
-    function table2dict(tbl::Table)
-        ret = Dict{String,Any}()
-        for (k,v) in tbl.values
-            if isa(v, Table)
-                ret[k] = table2dict(v)
-            elseif isa(v, Array) && length(v)>0 && isa(v[1], Table)
-                ret[k] = [table2dict(e) for e in v]
-            else
-                ret[k] = v
-            end
-        end
-        return ret
-    end
+Constructor for a TOML `Parser`. After creation the
+function [`TOML.reinit!`](@ref) is used to initialize
+the parser and then `TOML.parse` is called to parse
+the data.
+Note that in most cases one does not need to explicitly create
+a `Parser` but instead one directly use
+use [`parsefile`](@ref) or [`parsestring`](@ref).
+"""
+const Parser = Internals.Parser
 
-    "Parse IO input and return result as dictionary."
-    function parse(io::IO)
-        parser = Parser(io)
-        res = parse(parser)
-        length(parser.errors)>0 && throw(CompositeException(parser.errors))
-        return table2dict(res)
-    end
+"""
+    parsefile(f::AbstractString)
+    parsefile(p::Parser, f::AbstractString)
 
-    "Parse string"
-    function parse(str::AbstractString)
-        io = IOBuffer(str)
-        res = parse(io)
-        close(io)
-        return res
-    end
+Parses a file `f` and returns the resulting
+table (dictionary). Throws a [`ParserError`](@ref)
+upon failure.
+See also [`tryparsefile`](@ref)
+"""
+parsefile(f::AbstractString) =
+    Internals.parse(Parser(read(f, String); filepath=abspath(f)); raise=true)
+parsefile(p::Parser, f::AbstractString) =
+    Internals.parse(Internals.reinit!(p, read(f, String); filepath=abspath(f)); raise=true)
 
-    "Parse file"
-    parsefile(filename::AbstractString) = parse(IOBuffer(read(filename)))
+"""
+    tryparsefile(f::AbstractString)
+    tryparsefile(p::Parser, f::AbstractString)
+
+Parses a file `f` and returns the resulting
+table (dictionary). Returns a [`ParserError`](@ref)
+upon failure.
+See also [`parsefile`](@ref)
+"""
+tryparsefile(f::AbstractString) =
+    Internals.parse(Parser(read(f, String); filepath=abspath(f)); raise=false)
+tryparsefile(p::Parser, f::AbstractString) =
+    Internals.parse(Internals.reinit!(p, read(f, String); filepath=abspath(f)); raise=false)
+
+"""
+    parsestring(str::AbstractString)
+    parsestring(p::Parser, str::AbstractString)
+
+Parses a string `str` and returns the resulting
+table (dictionary). Returns a [`ParserError`](@ref)
+upon failure.
+See also [`tryparsestring`](@ref)
+"""
+parsestring(str::AbstractString) =
+    Internals.parse(Parser(String(str)); raise=true)
+parsestring(p::Parser, str::AbstractString) =
+    Internals.parse(Internals.reinit!(p, String(str)); raise=true)
+
+"""
+    tryparsestring(str::AbstractString)
+    tryparsestring(p::Parser, str::AbstractString)
+
+Parses a string `str` and returns the resulting
+table (dictionary). Returns a [`ParserError`](@ref)
+upon failure.
+See also [`parsestring`](@ref)
+"""
+tryparsestring(str::AbstractString) =
+    Internals.parse(Parser(String(str)); raise=false)
+tryparsestring(p::Parser, str::AbstractString) =
+    Internals.parse(Internals.reinit!(p, String(str)); raise=false)
+
+"""
+    ParserError
+Type that is returned from [`tryparsestring`](@ref) and
+[`tryparsefile`](@ref) when parsing fails. It contains the following 
+fields:
+- `pos`, the position in the string when the error happened
+- `table`, the result that so far was successfully parsed
+- `type`, an error type, different for different type of errors
+"""
+const ParserError = Internals.ParserError
+
+const print = Internals.print
 
 end

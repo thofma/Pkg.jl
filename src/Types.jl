@@ -149,9 +149,16 @@ end
 # EnvCache #
 ############
 
-function parse_toml(path::String...; fakeit::Bool=false)
+# TODO: Uncomment
+# parse_toml(path::String...; fakeit::Bool=false) = parse_toml(TOML.Parser(); fakeit)
+function parse_toml(ctx, path::String...; fakeit::Bool=false)
     p = joinpath(path...)
-    !fakeit || isfile(p) ? TOML.parsefile(p) : Dict{String,Any}()
+    if !fakeit || isfile(p)
+        return TOML.parsefile(ctx.parser, p)
+    else
+        return Dict{String,Any}()
+    end
+
 end
 
 function projectfile_path(env_path::String; strict=false)
@@ -338,6 +345,7 @@ Base.@kwdef mutable struct Context
     currently_running_target::Bool = false
     # test instrumenting
     status_io::Union{IO,Nothing} = nothing
+    parser::TOML.Parser = TOML.Parser()
 end
 
 project_uuid(ctx::Context) = ctx.env.pkg === nothing ? nothing : ctx.env.pkg.uuid
@@ -405,7 +413,7 @@ function write_env_usage(source_file::AbstractString, usage_filepath::AbstractSt
     end
 end
 
-function read_package(path::String)
+function read_package(ctx, path::String)
     project = read_project(path)
     if project.name === nothing
         pkgerror("expected a `name` entry in project file at `$(abspath(path))`")
@@ -671,7 +679,7 @@ function resolve_projectfile!(ctx, pkg, project_path)
     project_file = projectfile_path(project_path; strict=true)
     project_file === nothing && pkgerror(string("could not find project file in package at `",
                                                 pkg.repo.source !== nothing ? pkg.repo.source : (pkg.path)), "` maybe `subdir` needs to be specified")
-    project_data = read_package(project_file)
+    project_data = read_package(ctx, project_file)
     if pkg.uuid === nothing || pkg.uuid == project_data.uuid
         pkg.uuid = project_data.uuid
     else
@@ -1329,7 +1337,7 @@ function registered_info(ctx::Context, uuid::UUID, key::String)
     isempty(paths) && pkgerror("`$uuid` is not registered")
     values = []
     for path in paths
-        info = parse_toml(path, "Package.toml")
+        info = parse_toml(ctx, path, "Package.toml")
         value = get(info, key, nothing)
         push!(values, (path, value))
     end

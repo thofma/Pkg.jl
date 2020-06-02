@@ -49,7 +49,7 @@ end
 read_project_targets(::Nothing, project::Project) = Dict{String,Vector{String}}()
 function read_project_targets(raw::Dict{String,Any}, project::Project)
     for (target, deps) in raw
-        deps isa Vector{String} || pkgerror("""
+        deps isa Vector && all(x -> x isa String, deps) || pkgerror("""
             Expected value for target `$target` to be a list of dependency names.
         """)
     end
@@ -124,10 +124,10 @@ function Project(raw::Dict)
     return project
 end
 
-function read_project(io::IO; path=nothing)
-    raw = nothing
-    try
-        raw = TOML.parse(io)
+function read_project_string(str::AbstractString; path=nothing)
+    raw = try
+        # TODO: Set filepath
+        TOML.parsestring(str) #; filepath=path)
     catch err
         if err isa TOML.ParserError
             pkgerror("Could not parse project $(something(path,"")): $(err.msg)")
@@ -141,7 +141,7 @@ function read_project(io::IO; path=nothing)
 end
 
 read_project(path::String) =
-    isfile(path) ? open(io->read_project(io;path=path), path) : Project()
+    isfile(path) ? read_project_string(read(path, String); path=path) : Project()
 
 ###########
 # WRITING #

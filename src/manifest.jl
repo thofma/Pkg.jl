@@ -76,8 +76,10 @@ end
 struct Stage1
     uuid::UUID
     entry::PackageEntry
-    deps::Union{AbstractVector{<:AbstractString}, Dict{String,UUID}}
+    deps::Union{Vector{String}, Dict{String,UUID}}
 end
+Stage1(uuid, entry, deps::Vector) = Stage1(uuid, entry, convert(Vector{String}, deps))
+Stage1(uuid, entry, deps::Dict) = Stage1(uuid, entry, convert(Dict{String, UUID}, deps))
 
 normalize_deps(name, uuid, deps, manifest) = deps
 function normalize_deps(name, uuid, deps::Vector{String}, manifest::Dict{String,Vector{Stage1}})
@@ -180,12 +182,13 @@ end
 ###########
 # WRITING #
 ###########
+const toml_type = Union{AbstractDict,AbstractArray,AbstractString,DateTime,Bool}
 function destructure(manifest::Manifest)::Dict
     function entry!(entry, key, value; default=nothing)
         if value == default
             delete!(entry, key)
         else
-            entry[key] = value isa TOML.TYPE ? value : string(value)
+            entry[key] = value isa toml_type ? value : string(value)
         end
     end
 

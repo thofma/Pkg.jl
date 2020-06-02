@@ -58,7 +58,7 @@ function complete_remote_package(partial)
                 path = pkginfo["path"]
                 version_info = Operations.load_versions(ctx, path; include_yanked=false)
                 versions = sort!(collect(keys(version_info)))
-                compat_data = Operations.load_package_data(
+                compat_data = Operations.load_package_data(ctx,
                     VersionSpec, joinpath(reg.path, path, "Compat.toml"), versions)
                 supported_julia_versions = VersionSpec()
                 found_julia_compat = false

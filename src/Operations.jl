@@ -149,13 +149,13 @@ end
 # Registry Loading #
 ####################
 
-function load_versions(ctx, path::String; include_yanked=false)
-    toml = parse_toml(path, "Versions.toml"; fakeit=true)
+function load_versions(ctx::Context, path::String; include_yanked=false)
+    toml = parse_toml(ctx, path, "Versions.toml"; fakeit=true)
     versions = Dict{VersionNumber, SHA1}(
         VersionNumber(ver) => SHA1(info["git-tree-sha1"]) for (ver, info) in toml
             if !get(info, "yanked", false) || include_yanked)
     if Pkg.OFFLINE_MODE[] # filter out all versions that are not already downloaded
-        pkg = parse_toml(path, "Package.toml")
+        pkg = parse_toml(ctx, path, "Package.toml")
         filter!(versions) do (v, sha)
             pkg_spec = PackageSpec(name=pkg["name"], uuid=UUID(pkg["uuid"]), version=v, tree_hash=sha)
             return is_package_downloaded(ctx, pkg_spec)
@@ -164,12 +164,12 @@ function load_versions(ctx, path::String; include_yanked=false)
     return versions
 end
 
-load_package_data(::Type{T}, path::String, version::VersionNumber) where {T} =
-    get(load_package_data(T, path, [version]), version, nothing)
+load_package_data(ctx::Context, ::Type{T}, path::String, version::VersionNumber) where {T} =
+    get(load_package_data(ctx, T, path, [version]), version, nothing)
 
 # TODO: This function is very expensive. Optimize it
-function load_package_data(::Type{T}, path::String, versions::Vector{VersionNumber}) where {T}
-    compressed = parse_toml(path, fakeit=true)
+function load_package_data(ctx::Context, ::Type{T}, path::String, versions::Vector{VersionNumber}) where {T}
+    compressed = parse_toml(ctx, path, fakeit=true)
     compressed = convert(Dict{String, Dict{String, Union{String, Vector{String}}}}, compressed)
     uncompressed = Dict{VersionNumber, Dict{String,T}}()
     vsorted = sort(versions)
@@ -178,6 +178,7 @@ function load_package_data(::Type{T}, path::String, versions::Vector{VersionNumb
         for v in vsorted
             v in vs || continue
             uv = get!(() -> Dict{String, T}(), uncompressed, v)
+            # Perf
             for (key, value) in data
                 if haskey(uv, key)
                     @warn "Overlapping ranges for $(key) in $(repr(path)) for version $v."
@@ -229,7 +230,7 @@ end
 function load_deps(ctx::Context, pkg::PackageSpec)::Dict{String,UUID}
     if tracking_registered_version(pkg)
         for path in registered_paths(ctx, pkg.uuid)
-            data = load_package_data(UUID, joinpath(path, "Deps.toml"), pkg.version)
+            data = load_package_data(ctx, UUID, joinpath(path, "Deps.toml"), pkg.version)
             data !== nothing && return data
         end
         return Dict{String,UUID}()
@@ -249,7 +250,7 @@ function collect_project!(ctx::Context, pkg::PackageSpec, path::String,
     if project_file === nothing
         pkgerror("could not find project file for package $(err_rep(pkg)) at `$path`")
     end
-    project = read_package(project_file)
+    project = read_package(ctx, project_file)
     julia_compat = get(project.compat, "julia", nothing)
     if julia_compat !== nothing && !(VERSION in Types.semver_spec(julia_compat))
         println(ctx.io, "julia version requirement for package $(err_rep(pkg)) not satisfied")
@@ -433,7 +434,7 @@ function deps_graph(ctx::Context, uuid_to_name::Dict{UUID,String}, reqs::Resolve
                 path = Types.stdlib_path(stdlibs()[uuid])
                 proj_file = projectfile_path(path; strict=true)
                 @assert proj_file !== nothing
-                proj = read_package(proj_file)
+                proj = read_package(ctx, proj_file)
 
                 v = something(proj.version, VERSION)
                 push!(all_versions_u, v)
@@ -453,8 +454,8 @@ function deps_graph(ctx::Context, uuid_to_name::Dict{UUID,String}, reqs::Resolve
                 for path in registered_paths(ctx, uuid)
                     version_info = load_versions(ctx, path; include_yanked=false)
                     versions = sort!(collect(keys(version_info)))
-                    deps_data = load_package_data(UUID, joinpath(path, "Deps.toml"), versions)
-                    compat_data = load_package_data(VersionSpec, joinpath(path, "Compat.toml"), versions)
+                    deps_data = load_package_data(ctx, UUID, joinpath(path, "Deps.toml"), versions)
+                    compat_data = load_package_data(ctx, VersionSpec, joinpath(path, "Compat.toml"), versions)
 
                     union!(all_versions_u, versions)
 
@@ -500,7 +501,7 @@ function load_urls(ctx::Context, pkgs::Vector{PackageSpec})
         ver = pkg.version::VersionNumber
         urls[uuid] = String[]
         for path in registered_paths(ctx, uuid)
-            info = parse_toml(path, "Package.toml")
+            info = parse_toml(ctx, path, "Package.toml")
             repo = info["repo"]
             repo in urls[uuid] || push!(urls[uuid], repo)
         end
