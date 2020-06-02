@@ -2,6 +2,10 @@
 
 module Pkg
 
+if isdefined(Base, :Experimental) && isdefined(Base.Experimental, Symbol("@optlevel"))
+    @eval Base.Experimental.@optlevel 1
+end
+
 import Random
 import REPL
 
