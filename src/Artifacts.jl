@@ -526,4 +526,23 @@ function extract_all_hashes(artifacts_toml::String;
     return hashes
 end
 
+# Support `AbstractString`s, but avoid compilers needing to track backedges for callers
+# of these functions in case a user defines a new type that is `<: AbstractString`
+archive_artifact(hash::SHA1, tarball_path::AbstractString; kwargs...) =
+    archive_artifact(hash, string(tarball_path); kwargs...)
+bind_artifact!(artifacts_toml::AbstractString, name::AbstractString, hash::SHA1; kwargs...) =
+    bind_artifact!(string(artifacts_toml), string(name), hash; kwargs...)
+unbind_artifact!(artifacts_toml::AbstractString, name::AbstractString) =
+    unbind_artifact!(string(artifacts_toml), string(name))
+download_artifact(tree_hash::SHA1, tarball_url::AbstractString, args...; kwargs...) =
+    download_artifact(tree_hash, string(tarball_url), args...; kwargs...)
+ensure_artifact_installed(name::AbstractString, artifacts_toml::AbstractString; kwargs...) =
+    ensure_artifact_installed(string(name), string(artifacts_toml); kwargs...)
+ensure_artifact_installed(name::AbstractString, meta::Dict, artifacts_toml::AbstractString; kwargs...) =
+    ensure_artifact_installed(string(name), meta, string(artifacts_toml); kwargs...)
+ensure_all_artifacts_installed(artifacts_toml::AbstractString; kwargs...) =
+    ensure_all_artifacts_installed(string(name); kwargs...)
+extract_all_hashes(artifacts_toml::AbstractString; kwargs...) =
+    extract_all_hashes(string(artifacts_toml); kwargs...)
+
 end # module Artifacts
